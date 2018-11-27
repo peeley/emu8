@@ -19,11 +19,13 @@ class Chip8{
 		bool draw;
 	private:
 		unsigned char memory[4096];		// 4KB memory
-		unsigned char v[16];			// 16 8bit registers, v0-ve
+		unsigned char v[16];			// 16 8bit registers, v0-ve and carry register
 		unsigned short I;				// 16bit index register
 		unsigned short stack[16];		// 16 byte stack
 		unsigned short sp;				// stack pointer
 		unsigned short pc;				// program counter
 		unsigned short opcode;			// current 8bit opcode
+		unsigned char clock;			// system timer
+		unsigned char sound;			// sound timer
 };
 #endif
