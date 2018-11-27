@@ -1,6 +1,8 @@
 #include "chip8.h"
 #include <random>
 #include <iostream>
+#include <chrono>
+#include <thread>
 using std::cout;
 using std::endl;
 using std::size_t;
@@ -40,6 +42,8 @@ Chip8::Chip8(){
 	I = 0;
 	sp = 0;
 	draw = false;
+	clock = 0;
+	sound = 0;
 	clear(graphics);
 	clear(stack);
 	clear(v);
@@ -55,37 +59,40 @@ bool Chip8::load(const char * filename){
 	fseek(romFile, 0, SEEK_END);
 	size_t romSize = ftell(romFile);		// Get size in bytes
 	rewind(romFile);
-	char * buffer = new char[romSize];
+	char * buffer = (char *) malloc(sizeof(char) * romSize);
 	size_t result = fread(buffer, sizeof(char), romSize, romFile); // Read rom file to buffer
 	for(int i = 0; i < romSize; i++){		// Copy to memory
 		memory[i + 0x200] = (unsigned short) buffer[i];
 	}
 	fclose(romFile);
-	delete [] buffer;
+	free(buffer);
 	return true;
 }
-
+int idx = 0;
 void Chip8::cycle(){
 	opcode = memory[pc] << 8 | memory[pc+1]; // Each opcode is 8 bit
+	cout << std::hex << opcode << endl;
+	++idx;
 	switch(opcode & 0xF000){	// Parse current opcode
 		
-		// 0___ 
+		// 00E_ 
 		case 0x0000:
-			switch(opcode & 0x0FFF){
+			switch(opcode & 0x000F){
 				// 00E0 : Clear screen
-				case 0x00E0:
-					for(auto i : graphics)
-						i = 0;
+				case 0x0000:
+					for(int i = 0; i < 2048; i++)
+						graphics[i] = 0;
+					draw = true;
+					pc += 2;
 					break;
 				// 00EE : return
-				case 0x00EE:
+				case 0x000E:
 					--sp;
 					pc = stack[sp];
 					pc += 2;
 					break;
 				default:
 					cout << "Error: unknown opcode " << opcode << endl;
-					exit(1);
 			}
 			break;
 		// 1NNN : jump to address NNN
@@ -94,14 +101,14 @@ void Chip8::cycle(){
 			break;
 		// 2NNN : calls NNN
 		case 0x2000:
-			stack[pc] = pc;
+			stack[sp] = pc;
 			++sp;
 			pc = opcode & 0x0FFF;
 			break;
 		// 3XNN : skip next if VX == NN
 		case 0x3000:
 			{
-			auto targetRegister = (opcode & 0x0F00) >> 8;
+			unsigned short targetRegister = (opcode & 0x0F00) >> 8;
 			if(v[targetRegister] == opcode & 0x00FF)
 				pc += 4;
 			else
@@ -111,7 +118,7 @@ void Chip8::cycle(){
 		// 4XNN : skip if VX != NN
 		case 0x4000:
 			{
-			auto targetRegister = (opcode & 0x0F00) >> 8;
+			unsigned short targetRegister = (opcode & 0x0F00) >> 8;
 			if(v[targetRegister] != opcode & 0x00FF)
 				pc += 4;
 			else
@@ -121,8 +128,8 @@ void Chip8::cycle(){
 		// 5XY0 : skips next if VX = VY
 		case 0x5000:
 			{
-			auto xReg = (opcode & 0x0F00) >> 8;
-			auto yReg = (opcode & 0x00F0) >> 4;
+			unsigned short xReg = (opcode & 0x0F00) >> 8;
+			unsigned short yReg = (opcode & 0x00F0) >> 4;
 			if(v[xReg] == v[yReg])
 				pc += 4;
 			else
@@ -132,8 +139,8 @@ void Chip8::cycle(){
 		// 6XNN : set VX to NN
 		case 0x6000:
 			{
-			auto xReg = (opcode & 0x0F00) >> 8;
-			auto num = (opcode & 0x00FF);
+			unsigned short xReg = (opcode & 0x0F00) >> 8;
+			unsigned short num = (opcode & 0x00FF);
 			v[xReg] = num;
 			pc += 2;
 			}
@@ -141,8 +148,8 @@ void Chip8::cycle(){
 		// 7XNN : add NN to VX
 		case 0x7000:
 			{
-			auto targetReg = (opcode & 0x0F00) >> 8;
-			auto num = (opcode & 0x00FF);
+			unsigned short targetReg = (opcode & 0x0F00) >> 8;
+			unsigned short num = (opcode & 0x00FF);
 			v[targetReg] += num;
 			pc += 2;
 			}
@@ -150,8 +157,8 @@ void Chip8::cycle(){
 		// 8XY_
 		case 0x8000:
 			{
-			auto xReg = (opcode & 0x0F00) >> 8;
-			auto yReg = (opcode & 0x00F0) >> 4;
+			unsigned short xReg = (opcode & 0x0F00) >> 8;
+			unsigned short yReg = (opcode & 0x00F0) >> 4;
 			switch(opcode & 0x000F){
 				// 8XY0 : set VX = VY
 				case 0x0000:
@@ -214,21 +221,21 @@ void Chip8::cycle(){
 					break;
 				default:
 					cout << "Error: unknown opcode " << opcode << endl;
-					exit(1);
 				}
 			}
+			break;
 		// 9XY0 : skip next if VX != VY
 		case 0x9000:
 			{
-			auto xReg = (opcode & 0x0F00) >> 8;
-			auto yReg = (opcode & 0x00F0) >> 4;
+			unsigned short xReg = (opcode & 0x0F00) >> 8;
+			unsigned short yReg = (opcode & 0x00F0) >> 4;
 			if(v[xReg] != v[yReg])
 				pc += 4;
 			else
 				pc += 2;
 			}
 			break;
-		// ANNN : set current address to NNN
+		// ANNN : set I to NNN
 		case 0xA000:
 			I = opcode & 0x0FFF;
 			pc += 2;
@@ -240,8 +247,8 @@ void Chip8::cycle(){
 		// CXNN : set VX to result of & on random number
 		case 0xC000:
 			{
-			auto xReg = (opcode & 0x0F00) >> 8;
-			auto n = opcode & 0x00FF;
+			unsigned short xReg = (opcode & 0x0F00) >> 8;
+			unsigned short n = opcode & 0x00FF;
 			v[xReg] = (rand() % (0xFF + 1)) & n;
 			pc += 2;
 			}
@@ -252,9 +259,9 @@ void Chip8::cycle(){
 		// when sprite is drawn, 0 otherwise
 		case 0xD000:
 			{
-			auto xReg = (opcode & 0x0F00) >> 8;
-			auto yReg = (opcode & 0x00F0) >> 4;
-			auto height = opcode & 0x000F;
+			unsigned short xReg = (opcode & 0x0F00) >> 8;
+			unsigned short yReg = (opcode & 0x00F0) >> 4;
+			unsigned short height = opcode & 0x000F;
 			v[0xF] = 0;
 			unsigned short px;
 			for(int y = 0; y < height; y++){
@@ -275,7 +282,7 @@ void Chip8::cycle(){
 		// EX__
 		case 0xE000:
 			{
-			auto xReg = (opcode & 0x0F00) >> 8;
+			unsigned short xReg = (opcode & 0x0F00) >> 8;
 			switch(opcode & 0x00FF){
 				// EX9E : skips next instruction if input[VX] is pressed, != 0
 				case 0x009E:
@@ -293,13 +300,13 @@ void Chip8::cycle(){
 					break;
 				default:
 					cout << "Error: unknown opcode " << opcode << endl;
-					exit(1);
 			}
 			}
+			break;
 		// FX__
 		case 0xF000:
 			{
-			auto xReg = (opcode & 0x0F00) >> 8;
+			unsigned short xReg = (opcode & 0x0F00) >> 8;
 			switch(opcode & 0x00FF){
 				// FX07 : sets VX to clock
 				case 0x0007:
@@ -367,9 +374,9 @@ void Chip8::cycle(){
 					break;
 				default:
 					cout << "Error: unknown opcode " << opcode << endl;
-					exit(1);
 			}
 			}
+			break;
 		default:
 			cout << "Error: unknown opcode " << opcode << endl;
 			exit(1);
@@ -394,4 +401,8 @@ int main(int argc, char * argv[]){
 	cout << "Loading ROM file: " << argv[1] << endl;
 	chip.load(argv[1]);
 	cout << "Finished loading ROM." << endl;
+	while(true){
+		chip.cycle();
+		std::this_thread::sleep_for(std::chrono::microseconds(1200));		
+	}
 }
