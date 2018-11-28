@@ -4,6 +4,7 @@
  * Emulator for chip8 architecture and assembly language.
  */
 
+#include <iostream>
 #ifndef CHIP8_HPP_
 #define CHIP8_HPP_
 

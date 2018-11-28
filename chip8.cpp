@@ -1,9 +1,5 @@
 #include "chip8.h"
 #include <random>
-#include <iostream>
-#include <chrono>
-#include <thread>
-#include "SDL2/SDL.h"
 using std::cout;
 using std::endl;
 using std::size_t;
@@ -18,6 +14,7 @@ void clear(T array){
 	}
 }
 
+// Each char represents one column of binary values, each character being 5 cols wide.
 unsigned char font[80] = {
 	0xF0, 0x90, 0x90, 0x90, 0xF0, //0
     0x20, 0x60, 0x20, 0x20, 0x70, //1
@@ -37,12 +34,12 @@ unsigned char font[80] = {
 	0xF0, 0x80, 0xF0, 0x80, 0x80  //F
 };
 
+// Initialize emulator, clean up.
 Chip8::Chip8(){
 	pc = 0x200;		// ROM instructions start at 0x200
 	opcode = 0;		// Initialize all values to 0
 	I = 0;
 	sp = 0;
-	draw = false;
 	clock = 0;
 	sound = 0;
 	clear(graphics);
@@ -55,6 +52,7 @@ Chip8::Chip8(){
 	}
 }
 
+// Load ROM file into memory.
 bool Chip8::load(const char * filename){
 	FILE * romFile = fopen(filename, "rb");	// Open rom file
 	fseek(romFile, 0, SEEK_END);
@@ -63,16 +61,16 @@ bool Chip8::load(const char * filename){
 	char * buffer = (char *) malloc(sizeof(char) * romSize);
 	size_t result = fread(buffer, sizeof(char), romSize, romFile); // Read rom file to buffer
 	for(int i = 0; i < romSize; i++){		// Copy to memory
-		memory[i + 0x200] = (unsigned short) buffer[i];
+		memory[i + 0x200] = (unsigned char) buffer[i];
 	}
 	fclose(romFile);
 	free(buffer);
 	return true;
 }
 int idx = 0;
+// Emulation cycle - read next opcode, parse, perform, then increment system clocks.
 void Chip8::cycle(){
 	opcode = memory[pc] << 8 | memory[pc+1]; // Each opcode is 8 bit
-	++idx;
 	switch(opcode & 0xF000){	// Parse current opcode
 		
 		// 00E_ 
@@ -80,8 +78,9 @@ void Chip8::cycle(){
 			switch(opcode & 0x000F){
 				// 00E0 : Clear screen
 				case 0x0000:
-					for(int i = 0; i < 2048; i++)
+					for(int i = 0; i < (64*32); i++){
 						graphics[i] = 0;
+					}
 					draw = true;
 					pc += 2;
 					break;
@@ -109,7 +108,7 @@ void Chip8::cycle(){
 		case 0x3000:
 			{
 			unsigned short targetRegister = (opcode & 0x0F00) >> 8;
-			if(v[targetRegister] == opcode & 0x00FF)
+			if(v[targetRegister] == (opcode & 0x00FF))
 				pc += 4;
 			else
 				pc += 2;
@@ -119,7 +118,7 @@ void Chip8::cycle(){
 		case 0x4000:
 			{
 			unsigned short targetRegister = (opcode & 0x0F00) >> 8;
-			if(v[targetRegister] != opcode & 0x00FF)
+			if(v[targetRegister] != (opcode & 0x00FF))
 				pc += 4;
 			else
 				pc += 2;
@@ -192,9 +191,9 @@ void Chip8::cycle(){
 				// 8XY5 : VX - VY, using carry flag for borrow
 				case 0x0005:
 					if(v[yReg] > v[xReg])
-						v[0xF] = 1;	// borrowed
+						v[0xF] = 0;	// borrowed
 					else
-						v[0xF] = 0;
+						v[0xF] = 1;
 					v[xReg] -= v[yReg];
 					pc += 2;
 					break;
@@ -207,9 +206,9 @@ void Chip8::cycle(){
 				// 8XY7 : sets VX = VY - VX, using borrow
 				case 0x0007:
 					if(v[xReg] > v[yReg])
-						v[0xF] = 1;
-					else
 						v[0xF] = 0;
+					else
+						v[0xF] = 1;
 					v[xReg] = v[yReg] - v[xReg];
 					pc += 2;
 					break;
@@ -244,7 +243,7 @@ void Chip8::cycle(){
 		case 0xB000:
 			pc = (opcode & 0x0FFF) + v[0];
 			break;
-		// CXNN : set VX to result of & on random number
+		// CXNN : set VX to NN & random number
 		case 0xC000:
 			{
 			unsigned short xReg = (opcode & 0x0F00) >> 8;
@@ -259,24 +258,29 @@ void Chip8::cycle(){
 		// when sprite is drawn, 0 otherwise
 		case 0xD000:
 			{
-			unsigned short xReg = (opcode & 0x0F00) >> 8;
-			unsigned short yReg = (opcode & 0x00F0) >> 4;
-			unsigned short height = opcode & 0x000F;
-			v[0xF] = 0;
-			unsigned short px;
-			for(int y = 0; y < height; y++){
-				px = memory[I + y];
-				for(int x = 0; x < 8; x++){
-					if((px & (0x80 >> x)) != 0){
-						int pixelLoc = v[xReg] + x + ((v[yReg] + y) * 64);
-						if(graphics[pixelLoc] == 1)
-							v[0xF] = 1;
-						graphics[pixelLoc] ^= 1;
-					}
-				}
-			}
-			draw = true;
-			pc += 2;
+            unsigned short x = v[(opcode & 0x0F00) >> 8];
+            unsigned short y = v[(opcode & 0x00F0) >> 4];
+            unsigned short height = opcode & 0x000F;
+            unsigned short pixel;
+            v[0xF] = 0;
+            for (int yline = 0; yline < height; yline++)
+            {
+                pixel = memory[I + yline];
+                for(int xline = 0; xline < 8; xline++)
+                {
+                    if((pixel & (0x80 >> xline)) != 0)
+                    {
+                        if(graphics[(x + xline + ((y + yline) * 64))] == 1)
+                        {
+                            v[0xF] = 1;
+                        }
+                        graphics[x + xline + ((y + yline) * 64)] ^= 1;
+                    }
+                }
+            }
+
+            draw = true;
+            pc += 2;
 			}
 			break;
 		// EX__
@@ -286,14 +290,14 @@ void Chip8::cycle(){
 			switch(opcode & 0x00FF){
 				// EX9E : skips next instruction if input[VX] is pressed, != 0
 				case 0x009E:
-					if(input[xReg] != 0)
+					if(input[v[xReg]] != 0)
 						pc += 4;
 					else
 						pc += 2;
 					break;
 				// EXA1 : skips if input[VX] isn't pressed, == 0
 				case 0x00A1:
-					if(input[xReg] == 0)
+					if(input[v[xReg]] == 0)
 						pc += 4;
 					else
 						pc += 2;
@@ -319,7 +323,7 @@ void Chip8::cycle(){
 					bool pressed = false;
 					for(int i = 0; i < 16; i++ ){
 						if(input[i] != 0){
-							v[xReg] = 1;
+							v[xReg] = i;
 							pressed = true;
 						}
 					}
@@ -338,8 +342,12 @@ void Chip8::cycle(){
 					sound = v[xReg];
 					pc += 2;
 					break;
-				// FX1E : add VX to I
+				// FX1E : add VX to I, using overflow register
 				case 0x001E:
+					if( I + v[xReg] > 0xFFF)
+						v[0xF] = 1;
+					else
+						v[0xF] = 0;
 					I += v[xReg];
 					pc += 2;
 					break;
@@ -359,10 +367,10 @@ void Chip8::cycle(){
 					break;
 				// FX55 : store V0-VX in memory starting at I
 				case 0x0055:
-					// TODO : different interpreter version ?
 					for(int n = 0; n < xReg; n++){
 						memory[I+n] = v[n];
 					}
+					I += xReg + 1;
 					pc += 2;
 					break;
 				// FX65 : fill V0-VX with vals from memory starting at I
@@ -370,6 +378,7 @@ void Chip8::cycle(){
 					for(int n = 0; n < xReg; n++){
 						v[n] = memory[I+n];
 					}
+					I += xReg + 1;
 					pc += 2;
 					break;
 				default:
@@ -381,85 +390,14 @@ void Chip8::cycle(){
 			cout << "Error: unknown opcode " << opcode << endl;
 			exit(1);
 	}
-	// deal with clock and sound - TODO
-	if(clock > 0)
+	if(clock > 0){
 		--clock;
+	}
+	// deal with sound - TODO
 	if(sound > 0){
 		if(sound == 1){
-			cout << "pretend you heard a beep" << endl;
-			--sound;
+			cout << "*beep*" << endl;
 		}
-	}
-}
-
-int main(int argc, char * argv[]){
-	Chip8 chip;
-	if(argc < 2){
-		cout << "Please provide ROM filename." << endl;
-		exit(1);
-	}
-	int windowWidth =  1024;
-	int windowHeight = 512;
-	cout << "Loading ROM file: " << argv[1] << endl;
-	chip.load(argv[1]);
-	cout << "Finished loading ROM." << endl;
-	SDL_Init(SDL_INIT_EVERYTHING);
-	SDL_Window * window = SDL_CreateWindow("emu8", 50, 50, windowWidth, windowHeight, 0);
-	SDL_Renderer * render = SDL_CreateRenderer(window, -1, 0);
-	SDL_RenderSetLogicalSize(render, windowWidth, windowHeight);
-	SDL_Texture * texture = SDL_CreateTexture(render, SDL_PIXELFORMAT_ARGB8888,
-											SDL_TEXTUREACCESS_STREAMING , 64, 32);
-
-	unsigned int graphicsBuffer[2048];
-	unsigned char pixel;
-	unsigned char keybindings[16] = {
-		SDLK_x,	SDLK_1,	SDLK_2,
-		SDLK_3,	SDLK_q,	SDLK_w,
-		SDLK_e,	SDLK_a,	SDLK_s,
-		SDLK_d,	SDLK_z,	SDLK_c,
-		SDLK_4,	SDLK_r,	SDLK_f,
-		SDLK_v
-	};
-	while(true){
-		chip.cycle();
-		SDL_Event event;
-		while(SDL_PollEvent(&event)){
-			if(event.type == SDL_QUIT){
-				SDL_DestroyWindow(window);
-				SDL_Quit();
-				exit(0);
-			}
-			if(event.type == SDL_KEYDOWN){
-				if (event.key.keysym.sym == SDLK_ESCAPE){
-					SDL_DestroyWindow(window);
-					SDL_Quit();
-					exit(0);
-				}
-				for(int i = 0; i < 16; i++){
-					if(event.key.keysym.sym == keybindings[i]){
-						chip.input[i] = 1;
-					}
-				}
-			}
-			if(event.type == SDL_KEYUP) {
-                for (int i = 0; i < 16; i++) {
-                    if (event.key.keysym.sym == keybindings[i]) {
-                        chip.input[i] = 0;
-                    }
-                }
-			}
-		}
-		if(chip.draw){
-			chip.draw = false;
-			for(int i = 0; i < 2048; i++){
-				pixel = chip.graphics[i];
-				graphicsBuffer[i] = (0x00FFFFFF * pixel) | 0xFF000000;
-			}
-			SDL_UpdateTexture(texture, NULL, graphicsBuffer, 64 * sizeof(unsigned int));
-			SDL_RenderClear(render); 
-			SDL_RenderCopy(render, texture, NULL, NULL);
-			SDL_RenderPresent(render);
-		}
-		std::this_thread::sleep_for(std::chrono::microseconds(1200));		
+		--sound;
 	}
 }
