@@ -1,4 +1,10 @@
-#include "chip8.h"
+// main.cpp
+// Noah Snelson
+// November 28, 2018
+// Main file for emulator and interpreter of CHIP-8 architecture and asm. 
+// Requires SDL2 installation in /usr/include/SDL2 .
+
+#include "Chip.h"
 #include <chrono>
 #include <thread>
 #include "SDL2/SDL.h"
@@ -25,11 +31,11 @@ int main(int argc, char * argv[]){
 
 	unsigned int graphicsBuffer[2048];
 	unsigned char pixel;
-	unsigned char keybindings[16] = {
-		SDLK_x,	SDLK_1,	SDLK_2,
-		SDLK_3,	SDLK_q,	SDLK_w,
-		SDLK_e,	SDLK_a,	SDLK_s,
-		SDLK_d,	SDLK_z,	SDLK_c,
+	unsigned char keybindings[16] = { // Emulates numpad setup, but fits laptop keyboard:
+		SDLK_x,	SDLK_1,	SDLK_2,			// 1 2 3 4
+		SDLK_3,	SDLK_q,	SDLK_w,			// Q W E R
+		SDLK_e,	SDLK_a,	SDLK_s,			// A S D F
+		SDLK_d,	SDLK_z,	SDLK_c,			// Z X C V
 		SDLK_4,	SDLK_r,	SDLK_f,
 		SDLK_v
 	};
@@ -73,6 +79,7 @@ int main(int argc, char * argv[]){
 			SDL_RenderCopy(render, texture, NULL, NULL);
 			SDL_RenderPresent(render);
 		}
+		// Slows down emulation to playable level
 		std::this_thread::sleep_for(std::chrono::microseconds(1200));		
 	}
 }

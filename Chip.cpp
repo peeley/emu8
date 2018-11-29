@@ -1,4 +1,10 @@
-#include "chip8.h"
+/* chip8.cpp
+ * Noah Snelson
+ * Source code for CHIP-8 emulator.
+ */
+
+
+#include "Chip.h"
 #include <random>
 using std::cout;
 using std::endl;
@@ -14,7 +20,7 @@ void clear(T array){
 	}
 }
 
-// Each char represents one column of binary values, each character being 5 cols wide.
+// Each char represents one column of binary values, each character being 5 cols wide
 unsigned char font[80] = {
 	0xF0, 0x90, 0x90, 0x90, 0xF0, //0
     0x20, 0x60, 0x20, 0x20, 0x70, //1
@@ -67,7 +73,7 @@ bool Chip8::load(const char * filename){
 	free(buffer);
 	return true;
 }
-int idx = 0;
+
 // Emulation cycle - read next opcode, parse, perform, then increment system clocks.
 void Chip8::cycle(){
 	opcode = memory[pc] << 8 | memory[pc+1]; // Each opcode is 8 bit
@@ -396,7 +402,7 @@ void Chip8::cycle(){
 	// deal with sound - TODO
 	if(sound > 0){
 		if(sound == 1){
-			cout << "*beep*" << endl;
+			// BEEP
 		}
 		--sound;
 	}

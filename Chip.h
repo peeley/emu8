@@ -1,13 +1,12 @@
 /* chip8.h
  * Noah Snelson
  * November 21, 2018
- * Emulator for chip8 architecture and assembly language.
+ * Emulator for CHIP-8 architecture and assembly language.
  */
 
 #include <iostream>
 #ifndef CHIP8_HPP_
 #define CHIP8_HPP_
-
 
 class Chip8{
 	public:
