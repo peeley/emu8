@@ -23,7 +23,7 @@ int main(int argc, char * argv[]){
 	chip.load(argv[1]);
 	cout << "Finished loading ROM." << endl;
 	SDL_Init(SDL_INIT_EVERYTHING);
-	SDL_Window * window = SDL_CreateWindow("emu8", 50, 50, windowWidth, windowHeight, 0);
+	SDL_Window * window = SDL_CreateWindow("emu8", 400, 200, windowWidth, windowHeight, 0);
 	SDL_Renderer * render = SDL_CreateRenderer(window, -1, 0);
 	SDL_RenderSetLogicalSize(render, windowWidth, windowHeight);
 	SDL_Texture * texture = SDL_CreateTexture(render, SDL_PIXELFORMAT_ARGB8888,

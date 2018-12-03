@@ -11,12 +11,13 @@
 class Chip8{
 	public:
 		Chip8();
-		bool load(const char *);
-		void cycle();
 		~Chip8()= default;
-		unsigned char input[16];		// 16 button inputs
+		bool load(const char *);        // Load ROM into memory
+		void cycle();                   // CPU cycle
+		bool input[16];         		// 16 button inputs
 		unsigned char graphics[64*32];	// display buffer
 		bool draw;
+
 	private:
 		unsigned char memory[4096];		// 4KB memory
 		unsigned char v[16];			// 16 8bit registers, v0-ve and carry register
