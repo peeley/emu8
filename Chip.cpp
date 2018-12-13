@@ -396,14 +396,8 @@ void Chip8::cycle(){
 			cout << "Error: unknown opcode " << opcode << endl;
 			exit(1);
 	}
+	// Decrement system timer, used to miscellaneous features in ROMs
 	if(clock > 0){
 		--clock;
-	}
-	// deal with sound - TODO
-	if(sound > 0){
-		if(sound == 1){
-			// BEEP
-		}
-		--sound;
 	}
 }
